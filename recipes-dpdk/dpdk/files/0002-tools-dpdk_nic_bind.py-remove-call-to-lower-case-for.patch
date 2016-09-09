@@ -1,0 +1,35 @@
+From 69be9021e4fd7b38862c74371f90f0cb5dc674f4 Mon Sep 17 00:00:00 2001
+From: Paul Barrette <paul.barrette@windriver.com>
+Date: Fri, 26 Jul 2013 16:50:39 -0400
+Subject: [PATCH 2/6] tools/dpdk_nic_bind.py: remove call to lower case for mod
+ path
+
+If the module path has upper case chars, the pci_unbind.py script will
+crunch them to lower case.  This will result in the script never
+finding a module.
+
+Port patch to dpdk-1.7.0
+
+Signed-off-by: Paul Barrette <paul.barrette@windriver.com>
+Signed-off-by: Pengyu Ma <pengyu.ma@windriver.com>
+Signed-off-by: chunguang yang <chunguang.yang@windriver.com>
+---
+ tools/dpdk_nic_bind.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/dpdk_nic_bind.py b/tools/dpdk_nic_bind.py
+index 28eace3..c428465 100755
+--- a/tools/dpdk_nic_bind.py
++++ b/tools/dpdk_nic_bind.py
+@@ -140,7 +140,7 @@ def find_module(mod):
+     # check using depmod
+     try:
+         depmod_out = check_output(["modinfo", "-n", mod],
+-                                  stderr=subprocess.STDOUT).lower()
++                                  stderr=subprocess.STDOUT)
+         if "error" not in depmod_out:
+             path = depmod_out.strip()
+             if exists(path):
+-- 
+2.5.0
+

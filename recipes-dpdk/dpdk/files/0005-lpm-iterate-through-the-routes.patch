@@ -1,0 +1,173 @@
+
+
+diff --git a/lib/librte_lpm/Makefile b/lib/librte_lpm/Makefile
+index 1c9b7cd..0f57fd1 100644
+--- a/lib/librte_lpm/Makefile
++++ b/lib/librte_lpm/Makefile
+@@ -38,10 +38,10 @@ CFLAGS += -O3
+ CFLAGS += $(WERROR_FLAGS) -I$(SRCDIR)
+ 
+ # all source are stored in SRCS-y
+-SRCS-$(CONFIG_RTE_LIBRTE_LPM) := rte_lpm.c rte_lpm6.c
++SRCS-$(CONFIG_RTE_LIBRTE_LPM) := rte_lpm.c rte_lpm6.c rte_lpm_iterate.c
+ 
+ # install this header file
+-SYMLINK-$(CONFIG_RTE_LIBRTE_LPM)-include := rte_lpm.h rte_lpm6.h
++SYMLINK-$(CONFIG_RTE_LIBRTE_LPM)-include := rte_lpm.h rte_lpm6.h rte_lpm_iterate.h
+ 
+ # this lib needs eal
+ DEPDIRS-$(CONFIG_RTE_LIBRTE_LPM) += lib/librte_eal lib/librte_malloc
+
+diff --git a/lib/librte_lpm/rte_lpm_iterate.c b/lib/librte_lpm/rte_lpm_iterate.c
+index 0000000..3774b54
+--- a/lib/librte_lpm/rte_lpm_iterate.c
++++ b/lib/librte_lpm/rte_lpm_iterate.c
+@@ -0,0 +1,83 @@
++
++
++/*
++ * *   BSD LICENSE
++ * *
++ * *   Copyright(c) 2014 Jörgen Grahn. All rights reserved.
++ * *   All rights reserved.
++ * *
++ * *   Redistribution and use in source and binary forms, with or without
++ * *   modification, are permitted provided that the following conditions
++ * *   are met:
++ * *
++ * *     * Redistributions of source code must retain the above copyright
++ * *       notice, this list of conditions and the following disclaimer.
++ * *     * Redistributions in binary form must reproduce the above copyright
++ * *       notice, this list of conditions and the following disclaimer in
++ * *       the documentation and/or other materials provided with the
++ * *       distribution.
++ * *     * Neither the name of Intel Corporation nor the names of its
++ * *       contributors may be used to endorse or promote products derived
++ * *       from this software without specific prior written permission.
++ * *
++ * *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ * */
++#include "rte_lpm_iterate.h"
++#include "rte_lpm.h"
++
++#include <arpa/inet.h>
++
++
++/**
++ * Iterate through the lpm, pulling out at most 'buflen' valid routes
++ * (less means we've hit the end).  The cursor should be initialized
++ * to { 0, 0 } before the first call.
++ *
++ * The routes are partially sorted, by prefix length.  Undefined
++ * results if the lpm is modified in parallel with or inbetween calls,
++ * although the iteration will still terminate properly.
++ */
++unsigned
++rte_lpm_iterate(struct rte_lpm_route* const buf, unsigned buflen,
++		const struct rte_lpm* lpm,
++		struct rte_lpm_cursor* const cursor)
++{
++	struct rte_lpm_route* p = buf;
++	struct rte_lpm_route* const end = p + buflen;
++
++	const struct rte_lpm_rule_info* const rinfo = lpm->rule_info;
++	const struct rte_lpm_rule* const rtbl = lpm->rules_tbl;
++
++	unsigned d = cursor->d;
++	unsigned n = cursor->n;
++
++	while(p!=end) {
++		if(d==32) break;
++		if(n>=rinfo[d].used_rules) {
++			d++;
++			n = 0;
++			continue;
++		}
++		const struct rte_lpm_rule rule = rtbl[rinfo[d].first_rule + n];
++		p->addr.s_addr = htonl(rule.ip);
++		p->plen = d+1;
++		p->nh = rule.next_hop;
++		p++;
++		n++;
++	}
++
++	cursor->d = d;
++	cursor->n = n;
++
++	return p - buf;
++}
+
+diff --git a/lib/librte_lpm/rte_lpm_iterate.h b/lib/librte_lpm/rte_lpm_iterate.h
+index 0000000..c7f796c
+--- a/lib/librte_lpm/rte_lpm_iterate.h
++++ b/lib/librte_lpm/rte_lpm_iterate.h
+@@ -0,0 +1,59 @@
++
++
++
++/*
++ *  *   BSD LICENSE
++ *  *
++ *  *   Copyright(c) 2014 Jörgen Grahn. All rights reserved.
++ *  *   All rights reserved.
++ *  *
++ *  *   Redistribution and use in source and binary forms, with or without
++ *  *   modification, are permitted provided that the following conditions
++ *  *   are met:
++ *  *
++ *  *     * Redistributions of source code must retain the above copyright
++ *  *       notice, this list of conditions and the following disclaimer.
++ *  *     * Redistributions in binary form must reproduce the above copyright
++ *  *       notice, this list of conditions and the following disclaimer in
++ *  *       the documentation and/or other materials provided with the
++ *  *       distribution.
++ *  *     * Neither the name of Intel Corporation nor the names of its
++ *  *       contributors may be used to endorse or promote products derived
++ *  *       from this software without specific prior written permission.
++ *  *
++ *  *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ *  *   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ *  *   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ *  *   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ *  *   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ *  *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ *  *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ *  *   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ *  *   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ *  *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ *  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *  */
++#ifndef _RTE_LPM_ITERATE_H_
++#define _RTE_LPM_ITERATE_H_
++
++#include <stdint.h>
++#include <netinet/in.h>
++
++struct rte_lpm;
++
++struct rte_lpm_cursor {
++	unsigned d;
++	unsigned n;
++};
++
++struct rte_lpm_route {
++	struct in_addr addr;
++	uint8_t plen;
++	uint8_t nh;
++};
++
++unsigned rte_lpm_iterate(struct rte_lpm_route* buf, unsigned buflen,
++			 const struct rte_lpm* lpm,
++			 struct rte_lpm_cursor* cursor);
++
++#endif

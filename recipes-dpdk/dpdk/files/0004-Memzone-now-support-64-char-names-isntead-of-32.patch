@@ -1,0 +1,31 @@
+From 22260639eac4a7f495a35970632c9f0a9565c368 Mon Sep 17 00:00:00 2001
+From: Yue Tao <Yue.Tao@windriver.com>
+Date: Tue, 2 Sep 2014 03:24:15 +0000
+Subject: [PATCH] Memzone now support 64 char names isntead of 32
+
+Issue: LIN6-8287
+
+Memzone now support 64 char names
+
+Signed-off-by: Hu <yadi.hu@windriver.com>
+Signed-off-by: chunguang yang <chunguang.yang@windriver.com>
+---
+ lib/librte_eal/common/include/rte_memzone.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/librte_eal/common/include/rte_memzone.h b/lib/librte_eal/common/include/rte_memzone.h
+index f69b5a8..32db07f 100644
+--- a/lib/librte_eal/common/include/rte_memzone.h
++++ b/lib/librte_eal/common/include/rte_memzone.h
+@@ -74,7 +74,7 @@ extern "C" {
+  */
+ struct rte_memzone {
+ 
+-#define RTE_MEMZONE_NAMESIZE 32       /**< Maximum length of memory zone name.*/
++#define RTE_MEMZONE_NAMESIZE 64       /**< Maximum length of memory zone name.*/
+ 	char name[RTE_MEMZONE_NAMESIZE];  /**< Name of the memory zone. */
+ 
+ 	phys_addr_t phys_addr;            /**< Start physical address. */
+-- 
+2.5.0
+

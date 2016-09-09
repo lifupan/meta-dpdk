@@ -1,0 +1,87 @@
+
+diff --git a/lib/librte_lpm/rte_lpm6.c b/lib/librte_lpm/rte_lpm6.c
+index 99a4a58..115de6e 100644
+--- a/lib/librte_lpm/rte_lpm6.c
++++ b/lib/librte_lpm/rte_lpm6.c
+@@ -55,6 +55,7 @@
+ #include <rte_spinlock.h>
+ 
+ #include "rte_lpm6.h"
++#include "rte_lpm_iterate.h"
+ 
+ #define RTE_LPM6_TBL24_NUM_ENTRIES        (1 << 24)
+ #define RTE_LPM6_TBL8_GROUP_NUM_ENTRIES         256
+@@ -819,3 +820,39 @@ rte_lpm6_delete_all(struct rte_lpm6 *lpm
+ 	/* Delete all rules form the rules table. */
+ 	memset(lpm->rules_tbl, 0, sizeof(struct rte_lpm6_rule) * lpm->max_rules);
+ }
++
++
++/*
++ *  * Iterate through the LPM, pulling out at most 'buflen' valid routes
++ *  * (less means we've hit the end).  The cursor should be initialized
++ *  * to { 0, 0 } before the first call.
++ *  *
++ *  * Undefined results if the lpm is modified in parallel with or
++ *  * inbetween calls, although the iteration will still terminate
++ *  * properly.
++ *  */
++unsigned rte_lpm6_iterate(struct rte_lpm6_route* buf, unsigned buflen,
++			  const struct rte_lpm6* lpm,
++			  struct rte_lpm_cursor* cursor)
++{
++	struct rte_lpm6_route* p = buf;
++	struct rte_lpm6_route* const end = p + buflen;
++
++	const struct rte_lpm6_rule* const rtbl = lpm->rules_tbl;
++
++	unsigned n = cursor->n;
++
++	while(p!=end) {
++		if (n >= lpm->used_rules) break;
++		const struct rte_lpm6_rule rule = rtbl[n];
++		memcpy(p->addr.s6_addr, rule.ip, sizeof p->addr);
++		p->plen = rule.depth;
++		p->nh = rule.next_hop;
++		p++;
++		n++;
++	}
++
++	cursor->n = n;
++
++	return p - buf;
++}
+diff --git a/lib/librte_lpm/rte_lpm_iterate.h b/lib/librte_lpm/rte_lpm_iterate.h
+index c7f796c..4a35983 100644
+--- a/lib/librte_lpm/rte_lpm_iterate.h
++++ b/lib/librte_lpm/rte_lpm_iterate.h
+@@ -40,12 +40,19 @@
+ #include <netinet/in.h>
+ 
+ struct rte_lpm;
++struct rte_lpm6;
+ 
+ struct rte_lpm_cursor {
+ 	unsigned d;
+ 	unsigned n;
+ };
+ 
++struct rte_lpm6_route {
++	struct in6_addr addr;
++	uint8_t plen;
++	uint8_t nh;
++};
++
+ struct rte_lpm_route {
+ 	struct in_addr addr;
+ 	uint8_t plen;
+@@ -56,4 +63,9 @@ unsigned rte_lpm_iterate(struct rte_lpm_
+ 			 const struct rte_lpm* lpm,
+ 			 struct rte_lpm_cursor* cursor);
+ 
++
++unsigned rte_lpm6_iterate(struct rte_lpm6_route* buf, unsigned buflen,
++			  const struct rte_lpm6* lpm,
++			  struct rte_lpm_cursor* cursor);
++
+ #endif

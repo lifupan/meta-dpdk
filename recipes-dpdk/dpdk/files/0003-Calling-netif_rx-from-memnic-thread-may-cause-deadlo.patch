@@ -1,0 +1,43 @@
+From 111fa189cebbb68c8283ba5a7c6c87e7c29e1441 Mon Sep 17 00:00:00 2001
+From: Pengyu Ma <pengyu.ma@windriver.com>
+Date: Wed, 22 Oct 2014 10:50:17 +0800
+Subject: [PATCH 3/6] Calling netif_rx() from memnic thread may cause deadlock,
+ if softirq is not disabled.
+
+The netif_rx() should be called in softirq context, but memnic
+thread is not softirq context. That may conflict softirq work like a
+timer handler in kernel network stack.
+
+Signed-off-by: Hiroshi Shimamoto <h-shimamoto@ct.jp.nec.com>
+Reviewed-by: Hayato Momma <h-momma@ce.jp.nec.com>
+Signed-off-by: Pengyu Ma <pengyu.ma@windriver.com>
+---
+ lib/librte_eal/linuxapp/kni/kni_net.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/lib/librte_eal/linuxapp/kni/kni_net.c b/lib/librte_eal/linuxapp/kni/kni_net.c
+index cfa8339..034d258 100644
+--- a/lib/librte_eal/linuxapp/kni/kni_net.c
++++ b/lib/librte_eal/linuxapp/kni/kni_net.c
+@@ -174,9 +174,18 @@ kni_net_rx_normal(struct kni_dev *kni)
+ 			skb->protocol = eth_type_trans(skb, dev);
+ 			skb->ip_summed = CHECKSUM_UNNECESSARY;
+ 
++			local_bh_disable();
++			/*
++			* Disable softirq here to avoid race between timers and
++			* netif_receive_skb
++			*/
++
++
+ 			/* Call netif interface */
+ 			netif_rx_ni(skb);
+ 
++			local_bh_enable();
++
+ 			/* Update statistics */
+ 			kni->stats.rx_bytes += len;
+ 			kni->stats.rx_packets++;
+-- 
+2.5.0
+
